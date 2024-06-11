@@ -4,8 +4,18 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+end
+
 # ╔═╡ abb9c6d0-27a9-11ef-17d3-dd8b592e9407
-using DynamicalSystems, Plots
+using DynamicalSystems, Plots, PlutoUI
 
 # ╔═╡ ed2fb86e-79bf-4a2d-936d-ae81476d1e26
 function dhopf(u,p,t)
@@ -17,33 +27,96 @@ function dhopf(u,p,t)
 	return SVector(dx1,dy1,dx2,dy2)
 end
 
-# ╔═╡ 17779c64-8ab5-43d5-bd69-0dc190763f6f
-p = [0.35,0.05,0.38*0.16,0.16,-0.2,0.1,0.1,-0.1]
+# ╔═╡ f6841a75-3fad-4416-b1b0-bb1e47f97545
+function duffing_forced(u,p,t)
+    μ,β,A,ω=p
+	du1 = u[2]
+    du2 = -μ*u[2]+u[1]*(β-u[1]*u[1])+A*cos(u[3])
+    du3 = ω
+	return SVector(du1,du2,du3)
+end
 
 # ╔═╡ 99d25fa8-8e58-4253-854d-eeaa877cd8ad
 u0 = [1.0, 0.0, 1.0, 0.0]
 
+# ╔═╡ 4f3b0984-fb18-431e-b3fa-6b94c5582a81
+# barrido
+begin
+	dc = 0.01
+	dk = 0.01
+	clist = dc:dc:1.0
+	klist = dk:dk:1.5
+	λm = zeros(length(clist),length(klist))
+	for (i,ci) in enumerate(clist)
+		for (j,ki) in enumerate(klist) 
+			pt = [0.3,-0.3,0.1,0.1*ki,-0.2,ci,-ci,-0.1]
+			doublehopf = ContinuousDynamicalSystem(dhopf,u0,pt)
+			λ = lyapunov(doublehopf,30000;Ttr=1000)
+			if (λ>0)
+				λm[i,j]=λ
+			end	
+		end
+	end
+end	
+
+# ╔═╡ 9476695c-bb0a-4c1d-8458-6faf261032cf
+size(λm)
+
+# ╔═╡ a6094432-1b02-4499-a297-c6b53775f0d2
+contourf(klist,clist,log10.(λm .+1e-4),lw=0,size=(1400,800),c = :inferno)
+
+# ╔═╡ 7101acf1-a0e2-4435-a893-4b44a6078d4d
+sp = html"&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp";
+
+# ╔═╡ 59c5216d-d200-4497-ae21-6024f0dcc47d
+md"""
+c : $(@bind c Slider(0.0:0.01:1.0,default=0.1;show_value=true)) $sp
+kc : $(@bind kc Slider(0.1:0.001:2.0,default=1.0;show_value=true)) \
+μ2 : $(@bind μ2 Slider(-1.0:0.01:1.0,default=-0.1;show_value=true)) $sp 
+tmax : $(@bind tmax Slider(100:100:3000.0,default=10.0;show_value=true)) 	
+"""
+
+# ╔═╡ 17779c64-8ab5-43d5-bd69-0dc190763f6f
+p = [0.3,μ2,0.1,0.1*kc,-0.2,c,-c,-0.1]
+
 # ╔═╡ 4aeac02b-54f6-4dd5-a19d-de4eb12e2db0
 doublehopf = ContinuousDynamicalSystem(dhopf,u0,p)
 
+# ╔═╡ d0e3815e-be2a-49c9-8a6f-202e126ad74b
+λ = lyapunov(doublehopf,30000;Ttr=1000)
+
 # ╔═╡ 39904a0d-ae44-4918-9ebf-fd6864e63171
-X, t = trajectory(doublehopf, 300.0)
+X, t = trajectory(doublehopf, tmax)
 
 # ╔═╡ 9fdacca0-43fd-49cf-8a6b-28fa974a8015
-plot(X[:,1])
+begin
+	plot(X[:,1],X[:,2])
+	plot!(X[:,3],X[:,4])
+end	
 
-# ╔═╡ f3d167e5-deb9-4e24-abfe-371f8bd87441
-λ = lyapunov(doublehopf,10000)
+# ╔═╡ db24c754-ae7c-4c0e-ba58-9663fd365c76
+html"""
+<style>
+main {
+    max-width: 1000px;
+}
+input[type*="range"] {
+	width: 40%;
+}
+</style>
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 DynamicalSystems = "61744808-ddfa-5f27-97ff-6e42cc95d634"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 
 [compat]
 DynamicalSystems = "~3.3.16"
 Plots = "~1.40.4"
+PlutoUI = "~0.7.59"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -52,7 +125,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.3"
 manifest_format = "2.0"
-project_hash = "b762b8eac8d584a545d4c552ce43c50d6a54c4ce"
+project_hash = "df894f1a27e02efa90e117b6d1d505178559424f"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "fc02d55798c1af91123d07915a990fbb9a10d146"
@@ -74,6 +147,12 @@ weakdeps = ["ChainRulesCore", "Test"]
     [deps.AbstractFFTs.extensions]
     AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
     AbstractFFTsTestExt = "Test"
+
+[[deps.AbstractPlutoDingetjes]]
+deps = ["Pkg"]
+git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.3.2"
 
 [[deps.Accessors]]
 deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "LinearAlgebra", "MacroTools", "Markdown", "Test"]
@@ -848,11 +927,29 @@ git-tree-sha1 = "f218fe3736ddf977e0e772bc9a586b2383da2685"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.23"
 
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.5"
+
+[[deps.HypertextLiteral]]
+deps = ["Tricks"]
+git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "0.9.5"
+
 [[deps.HypothesisTests]]
 deps = ["Combinatorics", "Distributions", "LinearAlgebra", "Printf", "Random", "Rmath", "Roots", "Statistics", "StatsAPI", "StatsBase"]
 git-tree-sha1 = "4b5d5ba51f5f473737ed9de6d8a7aa190ad8c72f"
 uuid = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
 version = "0.11.0"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "8b72179abc660bfab5e28472e019392b97d0985c"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "0.2.4"
 
 [[deps.IfElse]]
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
@@ -1180,6 +1277,11 @@ weakdeps = ["ChainRulesCore", "ForwardDiff", "SpecialFunctions"]
     ForwardDiffExt = ["ChainRulesCore", "ForwardDiff"]
     SpecialFunctionsExt = "SpecialFunctions"
 
+[[deps.MIMEs]]
+git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "0.1.4"
+
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
 git-tree-sha1 = "80b2833b56d466b3858d565adcd16a4a05f2089b"
@@ -1481,6 +1583,12 @@ version = "1.40.4"
     IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
     ImageInTerminal = "d8c32880-2388-543b-8c61-d9f865259254"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "ab55ee1510ad2af0ff674dbcced5e94921f867a9"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.59"
 
 [[deps.Polyester]]
 deps = ["ArrayInterface", "BitTwiddlingConvenienceFunctions", "CPUSummary", "IfElse", "ManualMemory", "PolyesterWeave", "Requires", "Static", "StaticArrayInterface", "StrideArraysCore", "ThreadingUtilities"]
@@ -2433,11 +2541,18 @@ version = "1.4.1+1"
 # ╔═╡ Cell order:
 # ╠═abb9c6d0-27a9-11ef-17d3-dd8b592e9407
 # ╠═ed2fb86e-79bf-4a2d-936d-ae81476d1e26
+# ╠═f6841a75-3fad-4416-b1b0-bb1e47f97545
 # ╠═17779c64-8ab5-43d5-bd69-0dc190763f6f
 # ╠═99d25fa8-8e58-4253-854d-eeaa877cd8ad
 # ╠═4aeac02b-54f6-4dd5-a19d-de4eb12e2db0
 # ╠═39904a0d-ae44-4918-9ebf-fd6864e63171
+# ╠═d0e3815e-be2a-49c9-8a6f-202e126ad74b
+# ╠═59c5216d-d200-4497-ae21-6024f0dcc47d
 # ╠═9fdacca0-43fd-49cf-8a6b-28fa974a8015
-# ╠═f3d167e5-deb9-4e24-abfe-371f8bd87441
+# ╠═9476695c-bb0a-4c1d-8458-6faf261032cf
+# ╠═4f3b0984-fb18-431e-b3fa-6b94c5582a81
+# ╠═a6094432-1b02-4499-a297-c6b53775f0d2
+# ╟─7101acf1-a0e2-4435-a893-4b44a6078d4d
+# ╟─db24c754-ae7c-4c0e-ba58-9663fd365c76
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
